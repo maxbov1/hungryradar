@@ -18,6 +18,172 @@ This is not a restaurant directory and it does not claim to know the exact numbe
 
 The agent is like a friend who checks several doors before telling you whether it is worth driving across town.
 
+## End-to-end user flow
+
+This is the product experience from signup through reservation.
+
+### Step 1: John creates an account
+
+John opens HungryRadar and signs up:
+
+```text
+First name: John
+Last name: Smith
+Phone number: 415-555-0198
+Email: john@example.com
+```
+
+We save this contact information in the user database so it can be reused when John makes a reservation. We do not ask for seating preferences, allergies, or special requests during signup. Those are collected later only when they matter for a specific search.
+
+### Step 2: John asks for a restaurant
+
+John says:
+
+```text
+Find me a good Italian restaurant near me tonight around 7:40pm for two people.
+```
+
+The agent finds restaurants, checks their availability, and returns restaurant cards. Each card includes links to the menu, website, map, and the next useful action.
+
+```text
+Trattoria Roma
+Italian · 4.7 stars · 12 minutes away
+
+7:40pm: Available
+
+[Reserve for 2 at 7:40pm] [View menu] [Website]
+```
+
+```text
+Pasta House
+Italian · 4.8 stars · 8 minutes away
+
+7:40pm: Not available
+Waitlist: Available
+
+[Join waitlist] [View menu] [Website]
+```
+
+### Step 3: John chooses the quick action
+
+John taps **Reserve for 2 at 7:40pm** on Trattoria Roma.
+
+HungryRadar uses:
+
+```text
+John Smith
+415-555-0198
+john@example.com
+2 people
+Tonight at 7:40pm
+```
+
+The app checks the exact time again before booking. The quick action does not silently move John to another time or restaurant.
+
+### Step 4: The reservation is confirmed
+
+If the table is still available, HungryRadar completes the reservation and shows:
+
+```text
+Reservation confirmed
+
+Trattoria Roma
+Tonight at 7:40pm
+2 people
+
+Confirmation sent to john@example.com
+```
+
+If the table disappeared, HungryRadar does not make a different reservation automatically:
+
+```text
+The 7:40pm table is no longer available.
+No reservation was made.
+
+You can try another time or join the waitlist.
+```
+
+John can change the party size, seating preference, allergies, or special requests for a later search without changing the contact information saved to his account.
+
+### The “I have a restaurant” flow
+
+John may already know where he wants to eat. He types a restaurant name, a neighborhood, or a description such as “that sushi place near Mission.”
+
+Google Places powers this search and helps us turn the fuzzy input into the correct restaurant. We should not guess from the name alone. Google Places returns possible matches, and John selects the right location when there is more than one.
+
+```mermaid
+flowchart LR
+    A[John types a restaurant or description] --> B[Google Places Text Search]
+    B --> C[Possible restaurant matches]
+    C --> D[John selects the correct place]
+    D --> E[Google Place Details]
+    E --> F[Official restaurant website]
+    F --> G[Reservation or waitlist page]
+    G --> H[Check availability]
+```
+
+Google Places answers **which restaurant is this?** The official restaurant website or booking provider answers **can John eat there at his requested time?**
+
+```text
+Restaurant: Trattoria Roma
+Party: 2 people
+Time: tonight at 7:40pm
+```
+
+When John selects the restaurant, HungryRadar carries over the restaurant information it already has:
+
+```text
+Restaurant name
+Address
+Google Maps link
+Rating and review count
+Price level
+Phone number
+Website
+Menu link, when available
+Opening hours
+Coordinates and travel distance
+```
+
+The agent then checks the restaurant itself instead of searching for other restaurants:
+
+```mermaid
+flowchart TD
+    A[John selects a restaurant from Maps or search] --> B[Load restaurant metadata]
+    B --> C[Check hours and kitchen hours]
+    C --> D[Find official reservation link]
+    D --> E[Check availability for 2 people at 7:40pm]
+    E --> F{What is available?}
+
+    F -->|Table available| G[Show Reserve for 2 at 7:40pm]
+    F -->|No table, waitlist available| H[Show Join waitlist]
+    F -->|No table, walk-ins possible| I[Show Walk-in possible]
+    F -->|No visible path| J[Show dead end and explain why]
+    F -->|Sources conflict| K[Show what could not be verified]
+
+    G --> L[John chooses the next action]
+    H --> L
+    I --> L
+    J --> M[John can choose another time or restaurant]
+    K --> M
+```
+
+The restaurant card should preserve the useful information from the original search while adding the live availability result:
+
+```text
+Trattoria Roma
+Italian · 4.7 stars · $$$
+12 minutes away
+
+Open until 10:00pm
+7:40pm: Available for 2 people
+
+[Reserve for 2 at 7:40pm]
+[View menu] [Website] [Open in Maps]
+```
+
+If John selected the restaurant from an external Google Maps search, he can provide the restaurant name, link, or place result. HungryRadar uses that information to identify the correct location before checking availability. If there are multiple restaurants with the same name, the app should show the address and ask John to choose the right one rather than guessing.
+
 ## The two user workflows
 
 ### Workflow 1: Check one restaurant
