@@ -28,7 +28,6 @@ The user already knows where they want to go.
 Restaurant: Nopa
 People: 2
 Target: tonight at 7:30pm
-Preference: avoid a long wait
 ```
 
 The agent investigates that restaurant and returns a clear recommendation.
@@ -44,7 +43,6 @@ Walk-ins: accepted
 Kitchen: open until 10:00pm
 
 Recommendation: join the waitlist before leaving.
-Confidence: medium
 ```
 
 ### Workflow 2: Find a restaurant
@@ -80,8 +78,7 @@ The agent should always show:
 - what it checked;
 - when it checked it;
 - the source link;
-- the recommendation; and
-- its confidence.
+- the recommendation.
 
 ## High-level system picture
 
@@ -127,7 +124,7 @@ flowchart TD
     M -->|Yes| N[Walk-in possible]
     M -->|No| O[Dead end: no visible path]
 
-    H --> P[Attach evidence and confidence]
+    H --> P[Attach evidence]
     K --> P
     N --> P
     X --> P
@@ -156,7 +153,7 @@ sequenceDiagram
     Booking-->>Agent: Waitlist unavailable
     Agent->>Official: Check walk-in and kitchen information
     Official-->>Agent: Walk-ins accepted; kitchen open
-    Agent-->>User: Walk-in possible, medium confidence
+    Agent-->>User: Walk-in possible
 ```
 
 The agent is not trying to prove that the restaurant is busy. It is trying to find the next useful action.
@@ -184,7 +181,6 @@ The agent should not simply return the ten highest-rated places. It should rank 
 ```text
 Recommendation value
   = restaurant quality
-  + availability confidence
   + match to requested time
   + distance fit
   + price fit
@@ -273,7 +269,6 @@ opening and kitchen hours
 source links
 last checked time
 status
-confidence
 ```
 
 This state lets the agent pause, revisit a source, or explain exactly how it reached its conclusion.

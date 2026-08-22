@@ -70,7 +70,7 @@ Every restaurant receives a practical status:
 | **Dead end** | There is no visible path to eating there at that time |
 | **Unknown** | Sources disagree or the booking page cannot be checked |
 
-The result includes the source links, the time checked, a confidence level, and the next action:
+The result includes the source links, the time checked, and the next action:
 
 ```text
 Nopa — tonight at 7:30pm
@@ -81,7 +81,6 @@ Walk-ins: accepted
 Kitchen: open until 10:00pm
 
 Recommendation: join the waitlist before leaving.
-Confidence: medium
 ```
 
 ## How the system works
@@ -130,7 +129,7 @@ flowchart TB
     Search --> Agent
     Travel --> Agent
 
-    Agent --> Result[Status, explanation, links, confidence]
+    Agent --> Result[Status, explanation, links]
     Result --> UI
 ```
 
@@ -205,7 +204,7 @@ flowchart TD
     L --> M{Walk-in appears viable?}
     M -->|Yes| N[Walk-in possible]
     M -->|No| O[Dead end: no visible path]
-    H --> P[Attach evidence and confidence]
+    H --> P[Attach evidence]
     K --> P
     N --> P
     X --> P
