@@ -1,0 +1,81 @@
+"""Google Places API (New) client and mapping.
+
+See https://developers.google.com/maps/documentation/places/web-service/data-fields
+for the supported field contract.
+"""
+
+from __future__ import annotations
+
+import httpx
+
+from ..models import Place
+
+_BASE_URL = "https://places.googleapis.com/v1"
+
+_SEARCH_FIELD_MASK = (
+    "places.id,places.displayName,places.formattedAddress,"
+    "places.rating,places.priceLevel"
+)
+_DETAILS_FIELD_MASK = (
+    "id,displayName,formattedAddress,googleMapsUri,editorialSummary,"
+    "websiteUri,rating,priceLevel,businessStatus,regularOpeningHours"
+)
+
+
+def search_places(api_key: str, query: str, max_results: int = 5) -> list[dict]:
+    """Text Search: turn a free-form query into a short list of candidates."""
+    response = httpx.post(
+        f"{_BASE_URL}/places:searchText",
+        headers={
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": api_key,
+            "X-Goog-FieldMask": _SEARCH_FIELD_MASK,
+        },
+        json={"textQuery": query, "maxResultCount": max_results},
+        timeout=10.0,
+    )
+    response.raise_for_status()
+    return [
+        {
+            "place_id": place["id"],
+            "name": place.get("displayName", {}).get("text", ""),
+            "address": place.get("formattedAddress", ""),
+            "rating": place.get("rating"),
+            "price_level": place.get("priceLevel"),
+        }
+        for place in response.json().get("places", [])
+    ]
+
+
+def get_place(api_key: str, place_id: str) -> tuple[Place, dict]:
+    """Place Details: hydrate the canonical Place plus raw hours/status evidence.
+
+    Returns (place, extra) rather than only Place, since business_status and
+    opening hours matter to the agent's "is it open" check but aren't part of
+    the canonical Place record.
+    """
+    response = httpx.get(
+        f"{_BASE_URL}/places/{place_id}",
+        headers={"X-Goog-Api-Key": api_key, "X-Goog-FieldMask": _DETAILS_FIELD_MASK},
+        timeout=10.0,
+    )
+    response.raise_for_status()
+    data = response.json()
+
+    place = Place(
+        place_id=data["id"],
+        name=data.get("displayName", {}).get("text", ""),
+        address=data.get("formattedAddress", ""),
+        google_maps_uri=data.get("googleMapsUri"),
+        description=data.get("editorialSummary", {}).get("text"),
+        website_uri=data.get("websiteUri"),
+        rating=data.get("rating"),
+        price_level=data.get("priceLevel"),
+    )
+    extra = {
+        "business_status": data.get("businessStatus"),
+        "regular_opening_hours": data.get("regularOpeningHours", {}).get(
+            "weekdayDescriptions"
+        ),
+    }
+    return place, extra
