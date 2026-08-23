@@ -119,7 +119,7 @@ flowchart TB
     UI[Web or chat interface] --> API[Application API]
     API --> Agent[HungryRadar agent]
 
-    Agent --> Places[Google Places tool]
+    Agent --> Places[Google Places canonical place-data tool]
     Agent --> Booking[Reservation-page tool]
     Agent --> Search[Search and official-site tool]
     Agent --> Travel[Distance and travel-time tool]
@@ -143,13 +143,16 @@ The agent would have a small set of clearly named tools:
 
 ```text
 find_places(cuisine, location, rating_floor)
-get_place_details(place_id)
+get_place_details(place_id, field_mask)
 find_booking_links(place_id)
 check_reservations(booking_url, party_size, date, time)
+get_google_visit_data(place_id, date, time)
 check_waitlist(booking_url, party_size, date, time)
 check_official_updates(restaurant_url)
 calculate_travel_time(origin, destination)
 ```
+
+Google Places is the canonical source for the place record. Every restaurant card should be hydrated from the selected Google Place, including its identity, address, coordinates, category, rating, price level, description/summary, hours, website, menu link when available, Google Maps link, and routing details. Reservation and wait-time tools enrich that record; they do not replace it.
 
 Each tool should return structured facts, not a paragraph written by another model. For example:
 
@@ -200,23 +203,29 @@ flowchart TD
     G -->|No| I[Check waitlist]
     I --> J{Waitlist available?}
     J -->|Yes| K[Waitlist available]
-    J -->|No| L[Check walk-in information]
-    L --> M{Walk-in appears viable?}
-    M -->|Yes| N[Walk-in possible]
-    M -->|No| O[Dead end: no visible path]
-    H --> P[Attach evidence]
-    K --> P
-    N --> P
-    X --> P
-    O --> P
-    P --> Q[Return recommendation]
+    J -->|No| L[Check Google visit data for target time]
+    L --> M{High typical wait?}
+    M -->|Yes| N[Do not recommend: high wait risk]
+    M -->|No or unavailable| O[Check walk-in information]
+    O --> P{Walk-in appears viable?}
+    P -->|Yes| Q[Walk-in possible]
+    P -->|No| R[Dead end: no visible path]
+    H --> S[Attach evidence]
+    K --> S
+    N --> S
+    Q --> S
+    X --> S
+    R --> S
+    S --> T[Return recommendation]
 ```
 
 The loop is bounded. If the answer remains unclear after the agreed sources are checked, the agent returns **Unknown** instead of searching forever or pretending to know.
 
 ## Data boundaries
 
-Google Places is useful for restaurant identity, ratings, review counts, location, price level, business status, and opening hours. It is not a guaranteed source of exact occupancy or complete reservation inventory. See the [Google Places API reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places).
+Google Places is the source of truth for anything intrinsic to the place: identity, description, category, address, coordinates, contact information, rating, price level, hours, website, menu link when available, Google Maps link, and directions/routing details. Google’s visit-data surfaces can add popular-times, live-activity, typical-visit-duration, and wait-time signals when Google publishes them for a business. Those are availability-risk signals, not replacement place metadata. See the [Google Places resource](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places) and [Place Data Fields](https://developers.google.com/maps/documentation/places/web-service/data-fields).
+
+When no reservation is visible for the requested party, date, and time, HungryRadar should use Google visit data as a secondary walk-in feasibility check. Compare the estimated wait for the requested time—not just current live activity—to the user’s wait tolerance. If the estimate is clearly high or exceeds that tolerance, exclude the restaurant from the recommended set and explain: “No reservation is available, and Google’s typical wait around 7:30pm is too high.” If Google does not publish a wait estimate, do not infer that the wait is short; keep the result **Unknown** or use other evidence such as a confirmed waitlist.
 
 Reservation information may come from public booking pages or the restaurant’s own site. We should prefer official links and respect access limits. We should not bypass logins, CAPTCHAs, rate limits, or booking protections.
 

@@ -109,7 +109,7 @@ John can change the party size, seating preference, allergies, or special reques
 
 John may already know where he wants to eat. He types a restaurant name, a neighborhood, or a description such as “that sushi place near Mission.”
 
-Google Places powers this search and helps us turn the fuzzy input into the correct restaurant. We should not guess from the name alone. Google Places returns possible matches, and John selects the right location when there is more than one.
+Google Places is the canonical place-data layer and powers this search. It turns fuzzy input into the correct restaurant and supplies the place record used by the rest of the app. We should not guess from the name alone. Google Places returns possible matches, and John selects the right location when there is more than one.
 
 ```mermaid
 flowchart LR
@@ -122,7 +122,7 @@ flowchart LR
     G --> H[Check availability]
 ```
 
-Google Places answers **which restaurant is this?** The official restaurant website or booking provider answers **can John eat there at his requested time?**
+Google Places answers **which restaurant is this?** and supplies the authoritative place metadata used in the UI. The official restaurant website or booking provider answers **can John eat there at his requested time?**
 
 ```text
 Restaurant: Trattoria Roma
@@ -284,18 +284,22 @@ flowchart TD
 
     I --> J{Waitlist found?}
     J -->|Yes| K[Waitlist available]
-    J -->|No| L[Check walk-in policy]
+    J -->|No| L[Check Google visit data for requested time]
+    L --> M{Typical wait too high?}
+    M -->|Yes| N[Do not recommend: high wait risk]
+    M -->|No or unavailable| O[Check walk-in policy]
 
-    L --> M{Walk-ins appear viable?}
-    M -->|Yes| N[Walk-in possible]
-    M -->|No| O[Dead end: no visible path]
+    O --> P{Walk-ins appear viable?}
+    P -->|Yes| Q[Walk-in possible]
+    P -->|No| R[Dead end: no visible path]
 
-    H --> P[Attach evidence]
-    K --> P
-    N --> P
-    X --> P
-    O --> P
-    P --> Q[Return recommendation]
+    H --> S[Attach evidence]
+    K --> S
+    N --> S
+    Q --> S
+    X --> S
+    R --> S
+    S --> T[Return recommendation]
 ```
 
 ### How the loop behaves
@@ -317,10 +321,22 @@ sequenceDiagram
     Booking-->>Agent: No reservation found
     Agent->>Booking: Check waitlist
     Booking-->>Agent: Waitlist unavailable
-    Agent->>Official: Check walk-in and kitchen information
-    Official-->>Agent: Walk-ins accepted; kitchen open
-    Agent-->>User: Walk-in possible
+    Agent->>Places: Check visit data for 7:30pm
+    Places-->>Agent: Typical wait is 55 minutes
+    Agent-->>User: Do not recommend: high wait risk
 ```
+
+If Google has no wait-time estimate for the restaurant or requested time, the agent must not treat that absence as a short wait. It can continue to the walk-in policy, but the result should retain an **Unknown** wait-risk flag and should not be presented as a verified low-wait option.
+
+Google visit data is most useful here as a secondary signal:
+
+- A visible reservation wins. Do not reject a bookable restaurant solely because its typical walk-in wait is high.
+- If no reservation is available, inspect the estimate for the user’s requested time and day.
+- Exclude a no-reservation restaurant when the typical wait exceeds the user’s stated tolerance or the product’s configured high-wait threshold.
+- Use popular-times/live-activity as supporting context, not as a substitute for a reservation or a guaranteed live queue.
+- Record the exact Google data type, target time, estimate, source URL, and timestamp in the evidence.
+
+The data is aggregated and anonymized. Google describes popular times as historical patterns, visit duration as recent visit patterns, and wait times as estimates based on recent weeks; Google may omit the data when it lacks enough visits. See [Google’s explanation of popular times, wait times, and visit duration](https://support.google.com/business/answer/6263531).
 
 The agent is not trying to prove that the restaurant is busy. It is trying to find the next useful action.
 
@@ -379,13 +395,14 @@ We should use sources for the jobs they are good at instead of asking one source
 
 | Source or tool | What we use it for | What it cannot prove |
 | --- | --- | --- |
-| Google Places | Restaurant identity, rating, review count, location, price level, hours, business status | Exact current occupancy or complete reservation inventory |
+| Google Places | Canonical place identity and metadata: name, description, category, address, coordinates, contact details, rating, price level, hours, website/menu links when available, Maps links, and routing details | Exact current occupancy, complete reservation inventory, or a guaranteed future wait |
+| Google visit data | Typical popularity and, when published, time-specific wait estimates, live activity, and visit duration | Guaranteed future wait, exact queue length, or a reservation |
 | Restaurant website | Official hours, kitchen hours, walk-in rules, closure notices, booking links | Guaranteed availability unless it exposes a live booking page |
 | Reservation platform | Visible reservations, waitlists, party-size and time options | That no visible table means the restaurant is completely full |
 | Search | Discovering the official site, booking page, and recent public updates | A reliable real-time source of truth by itself |
 | Maps or travel service | Distance and estimated travel time | Whether the user will actually get seated |
 
-The official Google Places API provides fields such as rating, review count, price level, business status, and opening hours. Its documented place fields should be treated as the supported contract; “popular times” is not a core availability field we should depend on. See [Google Places resource fields](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places).
+The official Google Places API provides fields such as rating, review count, price level, business status, and opening hours. Its documented place fields should be treated as the supported contract. Popular-times and wait-time data may be exposed through Google Maps or another permitted Google surface rather than the core Places resource; the implementation must verify the current licensing and API access path before relying on it. We must not scrape Google Maps or bypass access controls. See [Google Places resource fields](https://developers.google.com/maps/documentation/places/web-service/data-fields) and [Google’s visit-data explanation](https://support.google.com/business/answer/6263531).
 
 ## Agent versus regular software
 
@@ -424,6 +441,12 @@ The system only needs a small record while checking a restaurant:
 
 ```text
 restaurant
+Google Place ID and canonical place record
+name, description, category, address, coordinates
+phone, rating, review count, price level
+regular/current hours and relevant service hours
+website, menu link when available, Google Maps link
+travel distance, duration, and directions link
 party size
 requested date and time
 location and travel limit
@@ -457,6 +480,12 @@ The correct output may be:
 
 > “No reservation is visible. Walk-ins are reportedly accepted, but current wait time could not be verified.”
 
+If Google provides a typical wait for the requested time, include it as a qualified estimate:
+
+> “No reservation is visible. Google’s typical wait around 7:30pm is about 55 minutes, which is above your 30-minute limit, so I left this place out.”
+
+Never turn a missing Google estimate into “no wait,” and never describe a historical estimate as a live guarantee.
+
 ### Source conflicts
 
 If Google says the restaurant is open but the official site says it is closed for a private event, the agent should show the conflict and prefer the more specific, more recent official notice.
@@ -473,6 +502,7 @@ For the first version, keep the system deliberately small:
 - one cuisine-focused search flow;
 - one named-restaurant check flow;
 - a small number of reservation sources;
+- Google visit-data filtering for no-reservation candidates, subject to a permitted access path;
 - no automatic booking;
 - no claim of exact occupancy;
 - direct links for the user to finish the reservation.
