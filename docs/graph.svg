@@ -41,13 +41,6 @@
   <path class="edge" d="M210 680 C155 575 178 450 254 386"/>
   <path class="edge" d="M338 300 C430 212 565 166 670 177"/>
 
-  <!-- Central controller links. -->
-  <path class="edge" d="M750 355 L750 295"/>
-  <path class="edge" d="M925 450 L1040 450"/>
-  <path class="edge" d="M900 610 L1010 720"/>
-  <path class="edge" d="M600 610 L490 720"/>
-  <path class="edge" d="M575 450 L460 450"/>
-
   <!-- Repair edges. -->
   <path class="back-edge" d="M1060 270 C920 112 600 92 390 205"/>
   <path class="back-edge" d="M1120 700 C1110 955 830 1000 690 930"/>
