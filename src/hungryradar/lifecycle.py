@@ -1,4 +1,4 @@
-"""Typed investigation lifecycle graph with JSON checkpoints."""
+"""Typed reservation lifecycle graph with JSON checkpoints."""
 
 from __future__ import annotations
 
@@ -10,30 +10,20 @@ from typing import Any
 
 
 class Step(StrEnum):
-    REQUEST_RECEIVED = "request_received"
-    PLACE_RESOLVED = "place_resolved"
-    PLACE_CONTEXT_READY = "place_context_ready"
-    RESERVATION_CHECKED = "reservation_checked"
-    WAITLIST_CHECKED = "waitlist_checked"
-    VISIT_RISK_CHECKED = "visit_risk_checked"
-    WALK_IN_CHECKED = "walk_in_checked"
-    BOOKABLE = "bookable"
+    INPUTS = "inputs"
+    IDENTIFY_LISTINGS = "identify_listings"
+    CHECK_AVAILABILITY = "check_availability"
+    CHECK_RESERVATION_FORM = "check_reservation_form"
+    PROPOSE_CONFIRM = "propose_confirm"
+    BOOK = "book"
+    BOOKED = "booked"
     WAITLIST_AVAILABLE = "waitlist_available"
-    WALK_IN_POSSIBLE = "walk_in_possible"
-    HIGH_WAIT_RISK = "high_wait_risk"
-    DEAD_END = "dead_end"
+    NO_MATCH = "no_match"
     UNKNOWN = "unknown"
 
 
 TERMINAL_STEPS = frozenset(
-    {
-        Step.BOOKABLE,
-        Step.WAITLIST_AVAILABLE,
-        Step.WALK_IN_POSSIBLE,
-        Step.HIGH_WAIT_RISK,
-        Step.DEAD_END,
-        Step.UNKNOWN,
-    }
+    {Step.BOOKED, Step.WAITLIST_AVAILABLE, Step.NO_MATCH, Step.UNKNOWN}
 )
 
 
@@ -48,7 +38,7 @@ class Requirement:
 
 @dataclass(frozen=True)
 class Node:
-    """One loop node and the checks that must be complete before leaving it."""
+    """One user-facing lifecycle node and its completion checklist."""
 
     step: Step
     checks: tuple[Requirement, ...] = ()
@@ -62,7 +52,6 @@ class Transition:
     current: Step
     next: Step
     requires: tuple[Requirement, ...] = ()
-    backtrack_to: Step | None = None
 
     def allowed(self, evidence: dict[str, Any]) -> bool:
         return all(requirement.met(evidence) for requirement in self.requires)
@@ -73,112 +62,98 @@ class LifecycleError(ValueError):
 
 
 TRANSITIONS = (
-    Transition(Step.REQUEST_RECEIVED, Step.PLACE_RESOLVED, (Requirement("request.valid"),)),
+    Transition(Step.INPUTS, Step.IDENTIFY_LISTINGS, (Requirement("inputs.valid"),)),
     Transition(
-        Step.PLACE_RESOLVED,
-        Step.PLACE_CONTEXT_READY,
-        (Requirement("place.resolved"),),
+        Step.IDENTIFY_LISTINGS,
+        Step.CHECK_AVAILABILITY,
+        (Requirement("listings.found"),),
     ),
     Transition(
-        Step.PLACE_CONTEXT_READY,
-        Step.RESERVATION_CHECKED,
-        (Requirement("place.context_ready"),),
+        Step.CHECK_AVAILABILITY,
+        Step.CHECK_RESERVATION_FORM,
+        (Requirement("availability.checked"), Requirement("reservation.available")),
     ),
     Transition(
-        Step.RESERVATION_CHECKED,
-        Step.BOOKABLE,
-        (Requirement("reservation.checked"), Requirement("reservation.available")),
-    ),
-    Transition(
-        Step.RESERVATION_CHECKED,
-        Step.WAITLIST_CHECKED,
+        Step.CHECK_AVAILABILITY,
+        Step.WAITLIST_AVAILABLE,
         (
-            Requirement("reservation.checked"),
+            Requirement("availability.checked"),
             Requirement("reservation.available", False),
+            Requirement("waitlist.available"),
         ),
     ),
     Transition(
-        Step.WAITLIST_CHECKED,
-        Step.WAITLIST_AVAILABLE,
-        (Requirement("waitlist.checked"), Requirement("waitlist.available")),
-    ),
-    Transition(
-        Step.WAITLIST_CHECKED,
-        Step.VISIT_RISK_CHECKED,
+        Step.CHECK_AVAILABILITY,
+        Step.NO_MATCH,
         (
-            Requirement("waitlist.checked"),
+            Requirement("availability.checked"),
+            Requirement("reservation.available", False),
             Requirement("waitlist.available", False),
         ),
     ),
     Transition(
-        Step.VISIT_RISK_CHECKED,
-        Step.HIGH_WAIT_RISK,
-        (Requirement("visit.checked"), Requirement("visit.high_wait")),
+        Step.CHECK_RESERVATION_FORM,
+        Step.PROPOSE_CONFIRM,
+        (Requirement("reservation.form.checked"), Requirement("form.valid")),
     ),
     Transition(
-        Step.VISIT_RISK_CHECKED,
-        Step.WALK_IN_CHECKED,
-        (Requirement("visit.checked"), Requirement("visit.high_wait", False)),
+        Step.PROPOSE_CONFIRM,
+        Step.BOOK,
+        (Requirement("proposal.presented"), Requirement("user.confirmed")),
     ),
     Transition(
-        Step.WALK_IN_CHECKED,
-        Step.WALK_IN_POSSIBLE,
-        (Requirement("walk_in.checked"), Requirement("walk_in.supported")),
+        Step.PROPOSE_CONFIRM,
+        Step.IDENTIFY_LISTINGS,
+        (Requirement("proposal.presented"), Requirement("user.confirmed", False)),
     ),
     Transition(
-        Step.WALK_IN_CHECKED,
-        Step.DEAD_END,
-        (Requirement("walk_in.checked"), Requirement("walk_in.supported", False)),
+        Step.BOOK,
+        Step.BOOKED,
+        (Requirement("booking.attempted"), Requirement("booking.success")),
     ),
     Transition(
-        Step.WALK_IN_CHECKED,
-        Step.UNKNOWN,
-        (Requirement("walk_in.unknown"),),
+        Step.BOOK,
+        Step.PROPOSE_CONFIRM,
+        (
+            Requirement("booking.attempted"),
+            Requirement("booking.success", False),
+            Requirement("proposal.presented"),
+        ),
     ),
 )
 
 
 NODES = {
-    Step.REQUEST_RECEIVED: Node(
-        Step.REQUEST_RECEIVED,
-        (Requirement("request.valid"),),
+    Step.INPUTS: Node(Step.INPUTS, (Requirement("inputs.valid"),)),
+    Step.IDENTIFY_LISTINGS: Node(
+        Step.IDENTIFY_LISTINGS,
+        (Requirement("listings.found"),),
     ),
-    Step.PLACE_RESOLVED: Node(
-        Step.PLACE_RESOLVED,
-        (Requirement("place.resolved"),),
+    Step.CHECK_AVAILABILITY: Node(
+        Step.CHECK_AVAILABILITY,
+        (Requirement("availability.checked"),),
     ),
-    Step.PLACE_CONTEXT_READY: Node(
-        Step.PLACE_CONTEXT_READY,
-        (Requirement("place.context_ready"),),
+    Step.CHECK_RESERVATION_FORM: Node(
+        Step.CHECK_RESERVATION_FORM,
+        (Requirement("reservation.form.checked"),),
     ),
-    Step.RESERVATION_CHECKED: Node(
-        Step.RESERVATION_CHECKED,
-        (Requirement("reservation.checked"),),
+    Step.PROPOSE_CONFIRM: Node(
+        Step.PROPOSE_CONFIRM,
+        (Requirement("proposal.presented"),),
     ),
-    Step.WAITLIST_CHECKED: Node(
-        Step.WAITLIST_CHECKED,
-        (Requirement("waitlist.checked"),),
-    ),
-    Step.VISIT_RISK_CHECKED: Node(
-        Step.VISIT_RISK_CHECKED,
-        (Requirement("visit.checked"),),
-    ),
-    Step.WALK_IN_CHECKED: Node(
-        Step.WALK_IN_CHECKED,
-        (Requirement("walk_in.checked"),),
-    ),
+    Step.BOOK: Node(Step.BOOK, (Requirement("booking.attempted"),)),
 }
 
 
 @dataclass
 class Checkpoint:
-    """Everything needed to inspect or resume one investigation."""
+    """Everything needed to inspect or resume one reservation attempt."""
 
     session_id: str
-    current: Step = Step.REQUEST_RECEIVED
+    current: Step = Step.INPUTS
     evidence: dict[str, Any] = field(default_factory=dict)
     attempts: dict[str, int] = field(default_factory=dict)
-    history: list[Step] = field(default_factory=lambda: [Step.REQUEST_RECEIVED])
+    history: list[Step] = field(default_factory=lambda: [Step.INPUTS])
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -205,11 +180,10 @@ class Checkpoint:
 
 
 class InvestigationGraph:
-    """A gated lifecycle runner; tools only add evidence to it."""
+    """A gated reservation lifecycle runner; tools only add evidence to it."""
 
     def __init__(self, session_id: str, checkpoint: Checkpoint | None = None) -> None:
         self.checkpoint = checkpoint or Checkpoint(session_id=session_id)
-        self._transitions = TRANSITIONS
 
     @property
     def current(self) -> Step:
@@ -221,7 +195,7 @@ class InvestigationGraph:
     def allowed_transitions(self) -> tuple[Transition, ...]:
         return tuple(
             transition
-            for transition in self._transitions
+            for transition in TRANSITIONS
             if transition.current == self.current
             and transition.allowed(self.checkpoint.evidence)
         )
@@ -237,7 +211,7 @@ class InvestigationGraph:
         transition = next(
             (
                 transition
-                for transition in self._transitions
+                for transition in TRANSITIONS
                 if transition.current == self.current and transition.next == next_step
             ),
             None,

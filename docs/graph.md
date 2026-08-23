@@ -4,57 +4,57 @@ This graph models one agent investigation from request to recommendation. It is 
 
 ## Circular lifecycle diagram
 
-<img src="graph.svg" alt="HungryRadar investigation lifecycle graph: seven checklist nodes arranged in a circle around a repair and continue controller." width="100%">
+<img src="graph.svg" alt="HungryRadar reservation lifecycle graph: six checklist nodes arranged in a circle around a repair and continue controller." width="100%">
 
-The seven numbered nodes are deliberately positioned in a circle. Each node has a small checklist. The center node is the control point: it records evidence, exposes only transitions whose checks are satisfied, and sends the agent backward when a later check invalidates an earlier assumption.
+The six numbered nodes are deliberately positioned in a circle. Each node has a small checklist. The center node is the control point: it records evidence, exposes only transitions whose checks are satisfied, and sends the agent backward when a user changes their mind or a later check invalidates an earlier assumption.
 
 ## Lifecycle nodes
 
 ```text
-REQUEST_RECEIVED       Parse and validate the user's party, date, time, and intent.
-PLACE_RESOLVED         Select exactly one Google Place ID.
-PLACE_CONTEXT_READY    Load canonical place data and requested-time hours.
-RESERVATION_CHECKED    Obtain a fresh reservation result.
-WAITLIST_CHECKED       Obtain a fresh waitlist result after no reservation.
-VISIT_RISK_CHECKED     Check target-time Google visit/wait data after no reservation.
-WALK_IN_CHECKED        Check official walk-in policy and service constraints.
-BOOKABLE               Terminal success.
-WAITLIST_AVAILABLE     Terminal success.
-WALK_IN_POSSIBLE       Terminal, qualified success.
-HIGH_WAIT_RISK         Terminal exclusion.
-DEAD_END               Terminal exclusion.
+INPUTS                 Parse and validate the user's request.
+IDENTIFY_LISTINGS      Find candidate listings and resolve Google Place IDs.
+CHECK_AVAILABILITY     Check reservations, waitlists, hours, and wait risk.
+CHECK_RESERVATION_FORM Compare the booking form with our internal data.
+PROPOSE_CONFIRM        Show the proposed booking and wait for user confirmation.
+BOOK                   Submit the confirmed reservation.
+BOOKED                 Terminal success.
+WAITLIST_AVAILABLE     Terminal alternative.
+NO_MATCH               Terminal no-path result.
 UNKNOWN                Terminal uncertainty.
 ```
 
 ## Every edge has a gate
 
 ```text
-REQUEST_RECEIVED -> PLACE_RESOLVED
-  requires: valid party size, date, time, and restaurant intent
+INPUTS -> IDENTIFY_LISTINGS
+  requires: valid party size, date, time, and intent
 
-PLACE_RESOLVED -> PLACE_CONTEXT_READY
-  requires: one Google Place ID and a canonical Place snapshot
+IDENTIFY_LISTINGS -> CHECK_AVAILABILITY
+  requires: one or more resolved Google Place IDs
 
-PLACE_CONTEXT_READY -> RESERVATION_CHECKED
-  requires: requested-time opening status and a booking path or explicit absence
+CHECK_AVAILABILITY -> CHECK_RESERVATION_FORM
+  requires: a reservation is available and the result is fresh
 
-RESERVATION_CHECKED -> BOOKABLE
-  requires: reservation.available == true
+CHECK_AVAILABILITY -> WAITLIST_AVAILABLE
+  requires: no reservation and a waitlist is available
 
-RESERVATION_CHECKED -> WAITLIST_CHECKED
-  requires: reservation.checked_at is fresh and available == false
+CHECK_AVAILABILITY -> NO_MATCH
+  requires: no reservation and no waitlist or credible path
 
-WAITLIST_CHECKED -> VISIT_RISK_CHECKED
-  requires: waitlist checked and no reservation
+CHECK_RESERVATION_FORM -> PROPOSE_CONFIRM
+  requires: form fields match the internal reservation data structure
 
-VISIT_RISK_CHECKED -> HIGH_WAIT_RISK
-  requires: target-time wait estimate > user tolerance
+PROPOSE_CONFIRM -> BOOK
+  requires: proposal shown and user confirmed
 
-VISIT_RISK_CHECKED -> WALK_IN_CHECKED
-  requires: target-time wait is acceptable, or Google explicitly has no estimate
+BOOK -> BOOKED
+  requires: booking submitted successfully
 
-WALK_IN_CHECKED -> WALK_IN_POSSIBLE
-  requires: credible walk-in policy evidence
+PROPOSE_CONFIRM -> IDENTIFY_LISTINGS
+  requires: user declined and wants another option
+
+BOOK -> PROPOSE_CONFIRM
+  requires: booking failed and another attempt is allowed
 ```
 
 ## Backpedaling rules
@@ -62,13 +62,12 @@ WALK_IN_CHECKED -> WALK_IN_POSSIBLE
 Backpedaling is normal. It is how the agent repairs a weak investigation instead of hallucinating a conclusion.
 
 ```text
-ambiguous place              -> PLACE_RESOLVED
-hours conflict               -> PLACE_CONTEXT_READY
-stale reservation result     -> RESERVATION_CHECKED
-booking source blocked       -> RESERVATION_CHECKED, alternate source
-missing visit estimate       -> VISIT_RISK_CHECKED, record unavailable
-conflicting walk-in sources  -> WALK_IN_CHECKED
-missing terminal evidence    -> earliest node that can produce it
+ambiguous listing            -> IDENTIFY_LISTINGS
+hours or availability stale  -> CHECK_AVAILABILITY
+form mismatch                -> CHECK_RESERVATION_FORM
+user declines proposal      -> IDENTIFY_LISTINGS
+booking fails                -> PROPOSE_CONFIRM
+missing terminal evidence   -> earliest node that can produce it
 ```
 
 Every loop node stores:

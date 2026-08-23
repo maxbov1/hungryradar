@@ -11,63 +11,89 @@ from hungryradar.lifecycle import (
 
 
 class LifecycleGraphTests(unittest.TestCase):
+    def move_to_availability(self, graph: InvestigationGraph) -> None:
+        graph.record(**{"inputs.valid": True})
+        graph.advance(Step.IDENTIFY_LISTINGS)
+        graph.record(**{"listings.found": True})
+        graph.advance(Step.CHECK_AVAILABILITY)
+
     def test_gates_prevent_skipping_steps(self):
         graph = InvestigationGraph("session-1")
 
         with self.assertRaises(LifecycleError):
-            graph.advance(Step.PLACE_RESOLVED)
+            graph.advance(Step.CHECK_AVAILABILITY)
 
-        graph.record(**{"request.valid": True})
-        graph.advance(Step.PLACE_RESOLVED)
-        self.assertEqual(graph.current, Step.PLACE_RESOLVED)
+        graph.record(**{"inputs.valid": True})
+        graph.advance(Step.IDENTIFY_LISTINGS)
         self.assertFalse(graph.checks_complete())
-        graph.record(**{"place.resolved": True})
+        graph.record(**{"listings.found": True})
         self.assertTrue(graph.checks_complete())
 
-    def test_high_wait_branch_is_terminal(self):
+    def test_reservation_path_reaches_booked(self):
         graph = InvestigationGraph("session-2")
-        graph.record(**{"request.valid": True})
-        graph.advance(Step.PLACE_RESOLVED)
-        graph.record(**{"place.resolved": True})
-        graph.advance(Step.PLACE_CONTEXT_READY)
-        graph.record(**{"place.context_ready": True})
-        graph.advance(Step.RESERVATION_CHECKED)
-        graph.record(**{"reservation.checked": True, "reservation.available": False})
-        graph.advance(Step.WAITLIST_CHECKED)
-        graph.record(**{"waitlist.checked": True, "waitlist.available": False})
-        graph.advance(Step.VISIT_RISK_CHECKED)
-        graph.record(**{"visit.checked": True, "visit.high_wait": True})
-        graph.advance(Step.HIGH_WAIT_RISK)
+        self.move_to_availability(graph)
+        graph.record(
+            **{"availability.checked": True, "reservation.available": True}
+        )
+        graph.advance(Step.CHECK_RESERVATION_FORM)
+        graph.record(**{"reservation.form.checked": True, "form.valid": True})
+        graph.advance(Step.PROPOSE_CONFIRM)
+        graph.record(**{"proposal.presented": True, "user.confirmed": True})
+        graph.advance(Step.BOOK)
+        graph.record(**{"booking.attempted": True, "booking.success": True})
+        graph.advance(Step.BOOKED)
 
         self.assertTrue(graph.is_terminal())
 
-    def test_backtrack_invalidates_stale_evidence(self):
+    def test_user_declining_proposal_backtracks_to_listings(self):
         graph = InvestigationGraph("session-3")
-        graph.record(**{"request.valid": True})
-        graph.advance(Step.PLACE_RESOLVED)
-        graph.record(**{"place.resolved": True, "place.context_ready": True})
-        graph.advance(Step.PLACE_CONTEXT_READY)
-        graph.backtrack(Step.PLACE_RESOLVED, invalidate=("place.context_ready",))
+        self.move_to_availability(graph)
+        graph.record(
+            **{"availability.checked": True, "reservation.available": True}
+        )
+        graph.advance(Step.CHECK_RESERVATION_FORM)
+        graph.record(**{"reservation.form.checked": True, "form.valid": True})
+        graph.advance(Step.PROPOSE_CONFIRM)
+        graph.record(**{"proposal.presented": True, "user.confirmed": False})
+        graph.advance(Step.IDENTIFY_LISTINGS)
 
-        self.assertEqual(graph.current, Step.PLACE_RESOLVED)
-        self.assertNotIn("place.context_ready", graph.checkpoint.evidence)
-        self.assertEqual(graph.checkpoint.attempts[Step.PLACE_RESOLVED.value], 1)
+        self.assertEqual(graph.current, Step.IDENTIFY_LISTINGS)
+
+    def test_failed_booking_returns_to_confirmation(self):
+        graph = InvestigationGraph("session-4")
+        self.move_to_availability(graph)
+        graph.record(
+            **{"availability.checked": True, "reservation.available": True}
+        )
+        graph.advance(Step.CHECK_RESERVATION_FORM)
+        graph.record(**{"reservation.form.checked": True, "form.valid": True})
+        graph.advance(Step.PROPOSE_CONFIRM)
+        graph.record(**{"proposal.presented": True, "user.confirmed": True})
+        graph.advance(Step.BOOK)
+        graph.record(
+            **{
+                "booking.attempted": True,
+                "booking.success": False,
+                "proposal.presented": True,
+            }
+        )
+        graph.advance(Step.PROPOSE_CONFIRM)
+
+        self.assertEqual(graph.current, Step.PROPOSE_CONFIRM)
 
     def test_checkpoint_round_trip(self):
-        graph = InvestigationGraph("session-4")
-        graph.record(**{"request.valid": True})
-        graph.advance(Step.PLACE_RESOLVED)
+        graph = InvestigationGraph("session-5")
+        graph.record(**{"inputs.valid": True})
+        graph.advance(Step.IDENTIFY_LISTINGS)
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "checkpoint.json"
             graph.checkpoint.save(path)
-            restored = InvestigationGraph(
-                "ignored", checkpoint=Checkpoint.load(path)
-            )
+            restored = InvestigationGraph("ignored", checkpoint=Checkpoint.load(path))
 
-        self.assertEqual(restored.checkpoint.session_id, "session-4")
-        self.assertEqual(restored.current, Step.PLACE_RESOLVED)
-        self.assertEqual(restored.checkpoint.evidence["request.valid"], True)
+        self.assertEqual(restored.checkpoint.session_id, "session-5")
+        self.assertEqual(restored.current, Step.IDENTIFY_LISTINGS)
+        self.assertEqual(restored.checkpoint.evidence["inputs.valid"], True)
 
 
 if __name__ == "__main__":

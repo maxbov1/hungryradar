@@ -103,40 +103,38 @@ agent = StrandsAgent(tools=[
 result = agent.run(user_request)
 ```
 
-Each tool should call an application service or provider port and return structured facts. The agent may decide what to check next, but `domain.rules` decides whether a reservation, high wait risk, waitlist, walk-in, or unknown status wins.
+Each tool should call an application service or provider port and return structured facts. The agent may decide what to check next, but the lifecycle runner decides whether the investigation can move to form validation, confirmation, booking, waitlist, no match, or unknown.
 
 ## Investigation graph
 
-The graph is the agent-loop lifecycle. It is a circular set of gated nodes, not a restaurant knowledge graph. Each node has a small checklist of evidence. A central runner records evidence, permits only checked transitions, and backpedals when a later result invalidates an earlier assumption.
+The graph is the reservation lifecycle. It is a circular set of gated user-facing nodes, not a restaurant knowledge graph. Each node has a small checklist of evidence. A central runner records evidence, permits only checked transitions, and backpedals when the user declines a proposal or a later check invalidates an earlier assumption.
 
 ```text
-REQUEST_RECEIVED
+INPUTS
     | valid request
     v
-PLACE_RESOLVED
-    | one Google Place ID, or user confirmation if ambiguous
+IDENTIFY_LISTINGS
+    | one or more resolved Google Place IDs
     v
-PLACE_CONTEXT_READY
-    | canonical Place snapshot + requested-time hours
-    v
-RESERVATION_CHECKED
-    +--> reservation available --------------------> BOOKABLE
+CHECK_AVAILABILITY
+    | reservations, waitlists, hours, and wait risk
+    +--> reservation available --------------------> CHECK_RESERVATION_FORM
     |
-    +--> no reservation
-             v
-        WAITLIST_CHECKED
-             | fresh waitlist result
-             v
-        VISIT_RISK_CHECKED
-             | target-time wait signal, or explicit unavailable result
-             +--> wait exceeds tolerance ----------> HIGH_WAIT_RISK
+    +--> waitlist available -----------------------> WAITLIST_AVAILABLE
+    |
+    +--> no credible path --------------------------> NO_MATCH
              |
-             +--> acceptable / unavailable
-                      v
-                 WALK_IN_CHECKED
-                      | policy evidence or explicit unknown
-                      +--> walk-in supported ------> WALK_IN_POSSIBLE
-                      +--> no credible path ------> DEAD_END / UNKNOWN
+             v
+CHECK_RESERVATION_FORM
+    | form matches internal reservation structure
+    v
+PROPOSE_CONFIRM
+    +--> user confirms -----------------------------> BOOK
+    +--> user declines -----------------------------> IDENTIFY_LISTINGS
+
+BOOK
+    +--> booking succeeds --------------------------> BOOKED
+    +--> booking fails -----------------------------> PROPOSE_CONFIRM
 
 Any node with missing, stale, or conflicting evidence --backpedals-->
 the earliest node that can repair that evidence.
@@ -146,20 +144,19 @@ the earliest node that can repair that evidence.
 
 ```python
 Transition(
-    current=RESERVATION_CHECKED,
-    next=VISIT_RISK_CHECKED,
-    requires=["reservation.checked_at", "reservation.status == no_table"],
-    on_missing="RESERVATION_CHECKED",
+    current=PROPOSE_CONFIRM,
+    next=BOOK,
+    requires=["proposal.presented", "user.confirmed"],
 )
 ```
 
 Examples of backtracking:
 
-- ambiguous place identity -> `PLACE_RESOLVED`;
-- stale or blocked booking page -> `RESERVATION_CHECKED`, then a bounded fallback source;
-- hours conflict -> `PLACE_CONTEXT_READY` to re-check Google Places and the official site;
-- missing target-time wait data -> `VISIT_RISK_CHECKED` with an explicit `unavailable` fact, never an inferred low wait;
-- contradictory walk-in evidence -> `WALK_IN_CHECKED` or `UNKNOWN`.
+- ambiguous listing -> `IDENTIFY_LISTINGS`;
+- stale or blocked availability source -> `CHECK_AVAILABILITY`, then a bounded fallback;
+- reservation form mismatch -> `CHECK_RESERVATION_FORM`;
+- user declines the proposal -> `IDENTIFY_LISTINGS`;
+- booking failure -> `PROPOSE_CONFIRM` for another allowed attempt.
 
 The graph runner owns lifecycle state, attempt limits, evidence requirements, and checkpoints. Strands chooses which permitted tool to call next. Pure domain rules decide the terminal recommendation once the graph has enough evidence. No vendor SDK or graph database should leak into these rules.
 
