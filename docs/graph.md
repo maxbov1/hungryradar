@@ -4,33 +4,9 @@ This graph models one agent investigation from request to recommendation. It is 
 
 ## Circular lifecycle diagram
 
-```mermaid
-flowchart LR
-    REQUEST["<b>1. Request</b><br/>☐ party/date/time<br/>☐ intent is clear"]
-    PLACE["<b>2. Place</b><br/>☐ one Google Place ID<br/>☐ identity confirmed"]
-    CONTEXT["<b>3. Context</b><br/>☐ hours checked<br/>☐ website/booking path"]
-    RESERVATION["<b>4. Reservation</b><br/>☐ source checked<br/>☐ result is fresh"]
-    WAITLIST["<b>5. Waitlist</b><br/>☐ source checked<br/>☐ result is fresh"]
-    VISIT["<b>6. Visit risk</b><br/>☐ target-time signal<br/>☐ wait tolerance applied"]
-    WALKIN["<b>7. Walk-in</b><br/>☐ policy checked<br/>☐ service constraints"]
-    LOOP(("<b>REPAIR / CONTINUE</b><br/>record evidence<br/>choose next allowed step"))
+<img src="graph.svg" alt="HungryRadar investigation lifecycle graph: seven checklist nodes arranged in a circle around a repair and continue controller." width="100%">
 
-    REQUEST --> PLACE --> CONTEXT --> RESERVATION --> WAITLIST --> VISIT --> WALKIN --> LOOP
-    LOOP --> REQUEST
-
-    RESERVATION --> BOOKABLE([BOOKABLE])
-    WAITLIST --> WAITLIST_OK([WAITLIST AVAILABLE])
-    VISIT --> HIGH_WAIT([HIGH WAIT RISK])
-    WALKIN --> WALKIN_OK([WALK-IN POSSIBLE])
-    WALKIN --> UNKNOWN([UNKNOWN / DEAD END])
-
-    CONTEXT -. identity or hours conflict .-> PLACE
-    RESERVATION -. stale or blocked .-> CONTEXT
-    VISIT -. stale context .-> RESERVATION
-    WALKIN -. stale wait signal .-> VISIT
-```
-
-The seven numbered nodes are the loop. Each node has a small checklist. The center node is the control point: it records evidence, exposes only transitions whose checks are satisfied, and sends the agent backward when a later check invalidates an earlier assumption.
+The seven numbered nodes are deliberately positioned in a circle. Each node has a small checklist. The center node is the control point: it records evidence, exposes only transitions whose checks are satisfied, and sends the agent backward when a later check invalidates an earlier assumption.
 
 ## Lifecycle nodes
 
