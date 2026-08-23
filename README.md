@@ -4,7 +4,7 @@
 
 ## What this repository does
 
-This repository contains the product concept and proposed architecture for HungryRadar. It is currently a design document, not a runnable application.
+This repository contains the product concept plus a small, runnable Python core for HungryRadar. External integrations are intentionally not wired in yet.
 
 ## Quick start
 
@@ -12,14 +12,36 @@ Start with the [product and architecture explainer](restaurant-availability-agen
 
 ## Common commands
 
-There are no application commands yet. Once implementation begins, add setup, development, test, and deployment commands here.
+Run the core tests without installing dependencies:
+
+```bash
+PYTHONPATH=src python -m unittest discover -s tests
+```
+
+The package metadata is in `pyproject.toml`. Provider integrations can be added later without changing the domain decision logic.
+
+## Documentation map
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) explains provider SDK boundaries, Strands, and the graph.
+- [docs/graph.md](docs/graph.md) defines the investigation lifecycle graph and its evidence gates.
+- [CONTRIBUTING.md](CONTRIBUTING.md) lists development and testing rules.
+- [AGENTS.md](AGENTS.md) lists repository constraints for coding agents.
 
 ## Repository layout
 
 ```text
 README.md                         Product overview and proposed implementation
 restaurant-availability-agent.md  Plain-language system explanation with diagrams
-LICENSE                           MIT License
+pyproject.toml                    Minimal Python package metadata
+src/hungryradar/models.py         Canonical domain objects
+src/hungryradar/ports.py          External-provider interfaces
+src/hungryradar/decision.py        Reservation and wait-risk rules
+src/hungryradar/lifecycle.py       Typed investigation graph and checkpoints
+tests/test_decision.py             Core behavior tests
+tests/test_lifecycle.py            Lifecycle gates and checkpoint tests
+ARCHITECTURE.md                   Implementation boundaries and graph plan
+docs/graph.md                     Investigation lifecycle graph and gates
+LICENSE                            MIT License
 ```
 
 HungryRadar is an AI restaurant-availability concierge. It helps hungry people avoid wasted trips by checking whether a restaurant has a reservation, a waitlist, a realistic walk-in option, or no useful path to food at the requested time.
