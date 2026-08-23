@@ -20,6 +20,9 @@ class LifecycleGraphTests(unittest.TestCase):
         graph.record(**{"request.valid": True})
         graph.advance(Step.PLACE_RESOLVED)
         self.assertEqual(graph.current, Step.PLACE_RESOLVED)
+        self.assertFalse(graph.checks_complete())
+        graph.record(**{"place.resolved": True})
+        self.assertTrue(graph.checks_complete())
 
     def test_high_wait_branch_is_terminal(self):
         graph = InvestigationGraph("session-2")

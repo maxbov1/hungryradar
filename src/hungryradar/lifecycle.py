@@ -47,6 +47,17 @@ class Requirement:
 
 
 @dataclass(frozen=True)
+class Node:
+    """One loop node and the checks that must be complete before leaving it."""
+
+    step: Step
+    checks: tuple[Requirement, ...] = ()
+
+    def complete(self, evidence: dict[str, Any]) -> bool:
+        return all(check.met(evidence) for check in self.checks)
+
+
+@dataclass(frozen=True)
 class Transition:
     current: Step
     next: Step
@@ -127,6 +138,38 @@ TRANSITIONS = (
 )
 
 
+NODES = {
+    Step.REQUEST_RECEIVED: Node(
+        Step.REQUEST_RECEIVED,
+        (Requirement("request.valid"),),
+    ),
+    Step.PLACE_RESOLVED: Node(
+        Step.PLACE_RESOLVED,
+        (Requirement("place.resolved"),),
+    ),
+    Step.PLACE_CONTEXT_READY: Node(
+        Step.PLACE_CONTEXT_READY,
+        (Requirement("place.context_ready"),),
+    ),
+    Step.RESERVATION_CHECKED: Node(
+        Step.RESERVATION_CHECKED,
+        (Requirement("reservation.checked"),),
+    ),
+    Step.WAITLIST_CHECKED: Node(
+        Step.WAITLIST_CHECKED,
+        (Requirement("waitlist.checked"),),
+    ),
+    Step.VISIT_RISK_CHECKED: Node(
+        Step.VISIT_RISK_CHECKED,
+        (Requirement("visit.checked"),),
+    ),
+    Step.WALK_IN_CHECKED: Node(
+        Step.WALK_IN_CHECKED,
+        (Requirement("walk_in.checked"),),
+    ),
+}
+
+
 @dataclass
 class Checkpoint:
     """Everything needed to inspect or resume one investigation."""
@@ -182,6 +225,13 @@ class InvestigationGraph:
             if transition.current == self.current
             and transition.allowed(self.checkpoint.evidence)
         )
+
+    def current_node(self) -> Node | None:
+        return NODES.get(self.current)
+
+    def checks_complete(self) -> bool:
+        node = self.current_node()
+        return node is None or node.complete(self.checkpoint.evidence)
 
     def advance(self, next_step: Step) -> None:
         transition = next(

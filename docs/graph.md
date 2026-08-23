@@ -2,30 +2,35 @@
 
 This graph models one agent investigation from request to recommendation. It is not a graph of restaurants or a replacement for Google Places.
 
-## Lifecycle diagram
+## Circular lifecycle diagram
 
 ```mermaid
-stateDiagram-v2
-    [*] --> REQUEST_RECEIVED
-    REQUEST_RECEIVED --> PLACE_RESOLVED: request.valid
-    PLACE_RESOLVED --> PLACE_CONTEXT_READY: place.resolved
-    PLACE_CONTEXT_READY --> RESERVATION_CHECKED: place.context_ready
+flowchart LR
+    REQUEST["<b>1. Request</b><br/>☐ party/date/time<br/>☐ intent is clear"]
+    PLACE["<b>2. Place</b><br/>☐ one Google Place ID<br/>☐ identity confirmed"]
+    CONTEXT["<b>3. Context</b><br/>☐ hours checked<br/>☐ website/booking path"]
+    RESERVATION["<b>4. Reservation</b><br/>☐ source checked<br/>☐ result is fresh"]
+    WAITLIST["<b>5. Waitlist</b><br/>☐ source checked<br/>☐ result is fresh"]
+    VISIT["<b>6. Visit risk</b><br/>☐ target-time signal<br/>☐ wait tolerance applied"]
+    WALKIN["<b>7. Walk-in</b><br/>☐ policy checked<br/>☐ service constraints"]
+    LOOP(("<b>REPAIR / CONTINUE</b><br/>record evidence<br/>choose next allowed step"))
 
-    RESERVATION_CHECKED --> BOOKABLE: reservation.available
-    RESERVATION_CHECKED --> WAITLIST_CHECKED: no reservation
-    WAITLIST_CHECKED --> WAITLIST_AVAILABLE: waitlist.available
-    WAITLIST_CHECKED --> VISIT_RISK_CHECKED: no waitlist
-    VISIT_RISK_CHECKED --> HIGH_WAIT_RISK: wait > tolerance
-    VISIT_RISK_CHECKED --> WALK_IN_CHECKED: wait acceptable / unavailable
-    WALK_IN_CHECKED --> WALK_IN_POSSIBLE: policy supports walk-in
-    WALK_IN_CHECKED --> DEAD_END: no credible path
-    WALK_IN_CHECKED --> UNKNOWN: conflicting or missing evidence
+    REQUEST --> PLACE --> CONTEXT --> RESERVATION --> WAITLIST --> VISIT --> WALKIN --> LOOP
+    LOOP --> REQUEST
 
-    PLACE_CONTEXT_READY --> PLACE_RESOLVED: identity conflict
-    RESERVATION_CHECKED --> PLACE_CONTEXT_READY: hours/source conflict
-    VISIT_RISK_CHECKED --> RESERVATION_CHECKED: stale availability context
-    WALK_IN_CHECKED --> VISIT_RISK_CHECKED: stale wait signal
+    RESERVATION --> BOOKABLE([BOOKABLE])
+    WAITLIST --> WAITLIST_OK([WAITLIST AVAILABLE])
+    VISIT --> HIGH_WAIT([HIGH WAIT RISK])
+    WALKIN --> WALKIN_OK([WALK-IN POSSIBLE])
+    WALKIN --> UNKNOWN([UNKNOWN / DEAD END])
+
+    CONTEXT -. identity or hours conflict .-> PLACE
+    RESERVATION -. stale or blocked .-> CONTEXT
+    VISIT -. stale context .-> RESERVATION
+    WALKIN -. stale wait signal .-> VISIT
 ```
+
+The seven numbered nodes are the loop. Each node has a small checklist. The center node is the control point: it records evidence, exposes only transitions whose checks are satisfied, and sends the agent backward when a later check invalidates an earlier assumption.
 
 ## Lifecycle nodes
 
@@ -90,7 +95,7 @@ conflicting walk-in sources  -> WALK_IN_CHECKED
 missing terminal evidence    -> earliest node that can produce it
 ```
 
-Every node stores:
+Every loop node stores:
 
 ```text
 state

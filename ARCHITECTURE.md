@@ -107,7 +107,7 @@ Each tool should call an application service or provider port and return structu
 
 ## Investigation graph
 
-The graph is the agent-loop lifecycle. It is a gated state machine, not a restaurant knowledge graph. Each node says what the agent is trying to establish. Each forward edge lists the evidence required to move on. Each failure edge says where to backpedal and repair the investigation.
+The graph is the agent-loop lifecycle. It is a circular set of gated nodes, not a restaurant knowledge graph. Each node has a small checklist of evidence. A central runner records evidence, permits only checked transitions, and backpedals when a later result invalidates an earlier assumption.
 
 ```text
 REQUEST_RECEIVED
@@ -165,7 +165,7 @@ The graph runner owns lifecycle state, attempt limits, evidence requirements, an
 
 For the first implementation, represent this graph as typed Python transitions and persisted JSON checkpoints. Add a graph database only if we later need cross-session traversal or operational visualization.
 
-The first implementation lives in `src/hungryradar/lifecycle.py`. GitHub renders the complete lifecycle diagram in [docs/graph.md](docs/graph.md).
+The first implementation lives in `src/hungryradar/lifecycle.py`, where `Node` contains each node’s checklist and `InvestigationGraph` is the central runner. GitHub renders the complete circular diagram in [docs/graph.md](docs/graph.md).
 
 ## First implementation order
 
