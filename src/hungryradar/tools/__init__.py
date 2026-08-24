@@ -7,6 +7,7 @@ from .booking import (
     find_booking_links,
 )
 from .places import find_places, get_place_details
+from .recommendation import finalize_recommendation
 from .travel import calculate_travel_time
 
 ALL_TOOLS = [
@@ -17,4 +18,5 @@ ALL_TOOLS = [
     check_reservations,
     check_waitlist,
     check_official_updates,
+    finalize_recommendation,
 ]
