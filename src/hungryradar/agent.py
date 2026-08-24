@@ -1,11 +1,3 @@
-"""The HungryRadar agent: investigates whether a restaurant is actually reachable.
-
-See restaurant-availability-agent.md for the product design this implements:
-the agent decides what to check next, the tools in src/tools collect public
-facts, and the agent turns those facts into one of a small set of statuses
-(bookable, waitlist available, walk-in possible, dead end, unknown).
-"""
-
 import sys
 
 from strands import Agent
