@@ -28,40 +28,39 @@ Recommendation with evidence
 
 ## Components
 
-The major components are the domain models and rules, application use cases, provider adapters, Strands orchestration, and the investigation-graph runner described below.
+The current implementation has four working layers:
+
+- `models.py`, `decision.py`, and `lifecycle.py` contain provider-independent data, recommendation rules, and gated session state.
+- `adapters/` contains the Google Places, Distance Matrix, and booking-page HTTP clients.
+- `tools/` exposes those adapters to Strands and enforces the lifecycle session gates.
+- `agent.py` builds the Strands agent, prompt, and command-line entry point.
 
 ## Data Flow
 
 Place resolution starts with Google Places, availability checks enrich the canonical place record, and the agent returns a recommendation with evidence.
 
-## Target package layout
+## Current package layout
 
 The current `src/hungryradar` files are the first slice of this layout. Add a directory only when it has a real implementation behind it.
 
 ```text
 src/hungryradar/
-  domain/
-    models.py              # Place, request, evidence, recommendation
-    rules.py               # Pure reservation and wait-risk rules
-  application/
-    check_restaurant.py    # Bounded investigation use case
-    find_restaurants.py    # Candidate search and ranking use case
-  ports/
-    places.py              # Our interface to canonical place data
-    reservations.py        # Our interface to booking sources
-    visit_data.py          # Our interface to wait/popular-times data
-    lifecycle.py           # Investigation graph interface
+  agent.py                 # Strands agent, system prompt, and CLI
+  config.py                # Environment-backed settings
+  models.py                # Canonical place and recommendation models
+  decision.py              # Pure recommendation rules
+  lifecycle.py             # Typed transitions and checkpoints
+  ports.py                 # Provider-facing interfaces
   adapters/
-    google_places/         # Google Places API client and mapping
-    reservations/          # One adapter per supported booking source
-    google_visit_data/     # Permitted Google visit-data access path
-  orchestration/
-    strands_agent.py       # Strands tools, prompt, and bounded loop
-  graph/
-    lifecycle.py           # Investigation nodes, edges, and gates
-    checkpoints.py         # Evidence snapshots for backtracking/resume
-  infrastructure/
-    settings.py            # Environment/config loading
+    google_places.py       # Google Places API client and mapping
+    google_distance_matrix.py
+    booking_page.py        # Booking-page fetch and text extraction
+  tools/
+    lifecycle.py           # Session registry and tool gates
+    places.py               # Google Places tools
+    travel.py               # Travel-time tool
+    booking.py              # Booking and official-site tools
+    recommendation.py      # Final deterministic recommendation tool
 ```
 
 ## Where the SDKs live
@@ -91,19 +90,26 @@ This keeps a provider swap boring. The rest of the application should not know w
 Strands is the investigation coordinator, not the business rules engine.
 
 ```python
-agent = StrandsAgent(tools=[
-    resolve_place,
-    get_place_snapshot,
-    check_reservations,
-    get_visit_data,
-    check_walk_in_policy,
-    calculate_directions,
-])
-
-result = agent.run(user_request)
+agent = Agent(system_prompt=SYSTEM_PROMPT, tools=ALL_TOOLS)
+agent(user_request)
 ```
 
-Each tool should call an application service or provider port and return structured facts. The agent may decide what to check next, but the lifecycle runner decides whether the investigation can move to form validation, confirmation, booking, waitlist, no match, or unknown.
+Each tool receives the same `session_id`. The lifecycle gate rejects calls made out of order. The agent may choose which permitted evidence tool to call next, but it cannot call `finalize_recommendation` until `record_availability` has recorded explicit availability evidence.
+
+## Running one agent cycle
+
+```text
+start_investigation(session_id, inputs_valid)
+    -> find_places(...) or get_place_details(...)
+    -> check_official_updates(...)
+    -> find_booking_links(...)
+    -> check_reservations(...) and check_waitlist(...)
+    -> calculate_travel_time(...)
+    -> record_availability(...)
+    -> finalize_recommendation(...)
+```
+
+The agent can stop early when a result is clear, but it must preserve evidence links and `checked_at` timestamps. A failed or blocked provider call produces uncertainty; it is never converted into a positive availability fact.
 
 ## Investigation graph
 
@@ -164,13 +170,21 @@ For the first implementation, represent this graph as typed Python transitions a
 
 The first implementation lives in `src/hungryradar/lifecycle.py`, where `Node` contains each node’s checklist and `InvestigationGraph` is the central runner. GitHub renders the complete circular diagram in [docs/graph.md](docs/graph.md).
 
-## First implementation order
+## Current status and next boundaries
 
-1. Keep the current pure models and decision rules.
-2. Add a Google Places adapter that maps a selected Place Details response into `Place`.
-3. Add an application service that runs the bounded check flow.
-4. Add one reservation adapter and one permitted visit-data adapter.
-5. Add typed lifecycle transitions, evidence gates, and checkpoints.
-6. Put Strands on top of the graph runner and expose only permitted next-step tools.
+Shipped:
 
-`TODO`: choose the first reservation provider and the permitted Google visit-data access path before implementing those adapters.
+- pure recommendation rules and typed lifecycle checkpoints;
+- Google Places and Distance Matrix adapters;
+- best-effort booking-page and official-site evidence tools;
+- Strands agent orchestration with session-scoped lifecycle gates;
+- source links and checked timestamps on external facts.
+
+Not yet shipped:
+
+- provider-specific live reservation integrations;
+- a permitted Google visit-data adapter for wait-risk estimates;
+- automatic booking, cancellation, or modification;
+- persistent sessions beyond in-memory lifecycle state and JSON checkpoints.
+
+Choose the first reservation provider and the permitted Google visit-data access path before adding those adapters.

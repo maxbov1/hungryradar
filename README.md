@@ -4,11 +4,7 @@
 
 ## What this repository does
 
-<<<<<<< HEAD
-This repository contains the product concept plus a small, runnable Python core for HungryRadar. External integrations are intentionally not wired in yet.
-=======
-This repository contains the product concept, proposed architecture, and an initial agent scaffold for HungryRadar, built on the [Strands Agents SDK](https://strandsagents.com/docs/user-guide/quickstart/overview/). The tools are real (Google Places, Distance Matrix) or best-effort (booking-page fetch and evidence extraction); see [Implementation notes](#implementation-notes).
->>>>>>> 90e52b4 (adding scaffolding for agent creation)
+This repository contains a runnable Python agent built on the [Strands Agents SDK](https://strandsagents.com/docs/user-guide/quickstart/overview/). It uses Google Places and Distance Matrix for real place and travel data, and fetches booking pages as best-effort evidence.
 
 ## Quick start
 
@@ -18,19 +14,25 @@ Start with the [product and architecture explainer](restaurant-availability-agen
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env   # add a Google Maps Platform key; configure AWS/Bedrock creds
-python -m src.agent "Can two people eat at Nopa tonight around 7:30pm?"
+PYTHONPATH=src python -m hungryradar.agent "Can two people eat at Nopa tonight around 7:30pm?"
 ```
 
 ## Common commands
 
-<<<<<<< HEAD
-Run the core tests without installing dependencies:
+Run the tests:
 
 ```bash
 PYTHONPATH=src python -m unittest discover -s tests
+python -m pytest
 ```
 
-The package metadata is in `pyproject.toml`. Provider integrations can be added later without changing the domain decision logic.
+Run the demo request:
+
+```bash
+PYTHONPATH=src python -m hungryradar.agent
+```
+
+The package metadata and runtime dependencies are in `pyproject.toml`.
 
 ## Documentation map
 
@@ -38,21 +40,26 @@ The package metadata is in `pyproject.toml`. Provider integrations can be added 
 - [docs/graph.md](docs/graph.md) defines the investigation lifecycle graph and its evidence gates.
 - [CONTRIBUTING.md](CONTRIBUTING.md) lists development and testing rules.
 - [AGENTS.md](AGENTS.md) lists repository constraints for coding agents.
-=======
-```bash
-pip install -e ".[dev]"   # install runtime + test dependencies
-python -m src.agent        # run the demo request from restaurant-availability-agent.md
-python -m src.agent "..."  # run the agent on a custom request
-python -m pytest           # run the test suite
-```
->>>>>>> 90e52b4 (adding scaffolding for agent creation)
+
+## Current implementation
+
+The initial agent cycle is shipped and runs through lifecycle gates:
+
+1. `start_investigation` validates the request and opens a session.
+2. `find_places` or `get_place_details` resolves one or more Google Place IDs.
+3. Availability tools check the official site, booking links, reservations, waitlist, hours, and travel time.
+4. `record_availability` records the explicit result from those checks.
+5. `finalize_recommendation` applies the pure decision rules and returns the status, explanation, source links, and check timestamps.
+
+Every tool receives the same `session_id`. The lifecycle gate rejects calls made out of order, so the model cannot jump straight to a recommendation without recording availability evidence.
+
+The current command-line entry point is `src/hungryradar/agent.py`. It starts a Strands agent with the tools in `src/hungryradar/tools/`.
 
 ## Repository layout
 
 ```text
 README.md                         Product overview and proposed implementation
 restaurant-availability-agent.md  Plain-language system explanation with diagrams
-<<<<<<< HEAD
 pyproject.toml                    Minimal Python package metadata
 src/hungryradar/models.py         Canonical domain objects
 src/hungryradar/ports.py          External-provider interfaces
@@ -63,18 +70,13 @@ tests/test_lifecycle.py            Lifecycle gates and checkpoint tests
 ARCHITECTURE.md                   Implementation boundaries and graph plan
 docs/graph.md                     Investigation lifecycle graph and gates
 LICENSE                            MIT License
-=======
 feature-beta-hungriness-quality-money.md  Beta preference-sliders feature spec
-LICENSE                           MIT License
-pyproject.toml                    Dependencies and pytest config
 .env.example                      Environment variables to copy into .env
-src/agent.py                      Agent definition, system prompt, and CLI entry point
-src/config.py                     Environment-backed settings
-src/tools/places.py                find_places, get_place_details (Google Places API)
-src/tools/travel.py                calculate_travel_time (Google Distance Matrix API)
-src/tools/booking.py               find_booking_links, check_reservations, check_waitlist, check_official_updates
-src/tests/                        pytest suite for the tools
->>>>>>> 90e52b4 (adding scaffolding for agent creation)
+src/hungryradar/agent.py          Agent definition, prompt, and CLI entry point
+src/hungryradar/config.py         Environment-backed settings
+src/hungryradar/adapters/         Provider HTTP clients and response mapping
+src/hungryradar/tools/            Strands tools and lifecycle gates
+tests/test_recommendation_tool.py Recommendation-tool tests
 ```
 
 ## Implementation notes
