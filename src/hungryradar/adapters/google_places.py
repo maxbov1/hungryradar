@@ -6,6 +6,8 @@ for the supported field contract.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import httpx
 
 from ..models import Place
@@ -24,6 +26,7 @@ _DETAILS_FIELD_MASK = (
 
 def search_places(api_key: str, query: str, max_results: int = 5) -> list[dict]:
     """Text Search: turn a free-form query into a short list of candidates."""
+    checked_at = datetime.now(timezone.utc).isoformat()
     response = httpx.post(
         f"{_BASE_URL}/places:searchText",
         headers={
@@ -42,6 +45,8 @@ def search_places(api_key: str, query: str, max_results: int = 5) -> list[dict]:
             "address": place.get("formattedAddress", ""),
             "rating": place.get("rating"),
             "price_level": place.get("priceLevel"),
+            "source_uri": f"{_BASE_URL}/places:searchText",
+            "checked_at": checked_at,
         }
         for place in response.json().get("places", [])
     ]
@@ -54,6 +59,7 @@ def get_place(api_key: str, place_id: str) -> tuple[Place, dict]:
     opening hours matter to the agent's "is it open" check but aren't part of
     the canonical Place record.
     """
+    checked_at = datetime.now(timezone.utc).isoformat()
     response = httpx.get(
         f"{_BASE_URL}/places/{place_id}",
         headers={"X-Goog-Api-Key": api_key, "X-Goog-FieldMask": _DETAILS_FIELD_MASK},
@@ -77,5 +83,7 @@ def get_place(api_key: str, place_id: str) -> tuple[Place, dict]:
         "regular_opening_hours": data.get("regularOpeningHours", {}).get(
             "weekdayDescriptions"
         ),
+        "source_uri": place.google_maps_uri or f"{_BASE_URL}/places/{place_id}",
+        "checked_at": checked_at,
     }
     return place, extra

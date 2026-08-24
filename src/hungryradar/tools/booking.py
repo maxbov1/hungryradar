@@ -10,6 +10,8 @@ which tells it to read page_text_snippet for genuine clues before deciding.
 from strands import tool
 
 from ..adapters.booking_page import fetch_page_text, find_links_by_domain
+from ..lifecycle import Step
+from .lifecycle import require_step
 
 KNOWN_BOOKING_DOMAINS = (
     "opentable.com",
@@ -21,7 +23,7 @@ KNOWN_BOOKING_DOMAINS = (
 
 
 @tool
-def find_booking_links(website_uri: str) -> dict:
+def find_booking_links(session_id: str, website_uri: str) -> dict:
     """Look for a reservation-provider link on a restaurant's official website.
 
     Takes the website URL (typically from get_place_details), not a place_id,
@@ -30,13 +32,16 @@ def find_booking_links(website_uri: str) -> dict:
     Args:
         website_uri: The restaurant's official website URL.
     """
+    require_step(session_id, Step.CHECK_AVAILABILITY)
     result = find_links_by_domain(website_uri, KNOWN_BOOKING_DOMAINS)
     result["known_domains_checked"] = list(KNOWN_BOOKING_DOMAINS)
     return result
 
 
 @tool
-def check_reservations(booking_uri: str, party_size: int, date_: str, time_: str) -> dict:
+def check_reservations(
+    session_id: str, booking_uri: str, party_size: int, date_: str, time_: str
+) -> dict:
     """Fetch a reservation page's visible text as evidence for a party/time.
 
     This does not parse live availability - no reservation platform exposes a
@@ -50,6 +55,7 @@ def check_reservations(booking_uri: str, party_size: int, date_: str, time_: str
         date_: Requested date, e.g. "2026-08-23".
         time_: Requested time, e.g. "19:30".
     """
+    require_step(session_id, Step.CHECK_AVAILABILITY)
     result = fetch_page_text(booking_uri)
     result["status"] = "unknown" if result.get("fetched") else "unreachable"
     result["party_size"] = party_size
@@ -59,7 +65,7 @@ def check_reservations(booking_uri: str, party_size: int, date_: str, time_: str
 
 
 @tool
-def check_waitlist(booking_uri: str) -> dict:
+def check_waitlist(session_id: str, booking_uri: str) -> dict:
     """Fetch a reservation/waitlist page's visible text as waitlist evidence.
 
     Same fetch-and-read approach as check_reservations: no status is asserted
@@ -69,13 +75,14 @@ def check_waitlist(booking_uri: str) -> dict:
     Args:
         booking_uri: The reservation or waitlist page URL.
     """
+    require_step(session_id, Step.CHECK_AVAILABILITY)
     result = fetch_page_text(booking_uri)
     result["status"] = "unknown" if result.get("fetched") else "unreachable"
     return result
 
 
 @tool
-def check_official_updates(website_uri: str) -> dict:
+def check_official_updates(session_id: str, website_uri: str) -> dict:
     """Fetch a restaurant's official website text for closure or hours notices.
 
     Use this to catch conflicts Google Places wouldn't reflect yet, e.g.
@@ -84,6 +91,7 @@ def check_official_updates(website_uri: str) -> dict:
     Args:
         website_uri: The restaurant's official website URL.
     """
+    require_step(session_id, Step.CHECK_AVAILABILITY)
     result = fetch_page_text(website_uri)
     result["status"] = "unknown" if result.get("fetched") else "unreachable"
     return result

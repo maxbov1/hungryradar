@@ -37,6 +37,7 @@ class ReservationResult:
     available: bool = False
     waitlist_available: bool = False
     source_uri: str | None = None
+    checked_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ class VisitData:
     popular_times_level: str | None = None
     live_activity_level: str | None = None
     source_uri: str | None = None
+    checked_at: str | None = None
 
 
 @dataclass(frozen=True)

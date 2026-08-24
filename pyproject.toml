@@ -1,10 +1,8 @@
-<<<<<<< HEAD
-=======
 [project]
 name = "hungryradar"
 version = "0.1.0"
-description = "AI restaurant-availability concierge agent"
-requires-python = ">=3.10"
+description = "Restaurant availability concierge"
+requires-python = ">=3.11"
 dependencies = [
     "strands-agents>=1.0.0",
     "strands-agents-tools>=0.2.0",
@@ -21,26 +19,12 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["src/tests"]
+testpaths = ["tests"]
+pythonpath = ["src"]
 
->>>>>>> 90e52b4 (adding scaffolding for agent creation)
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
-<<<<<<< HEAD
-[project]
-name = "hungryradar"
-version = "0.1.0"
-description = "Restaurant availability concierge"
-requires-python = ">=3.11"
-
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.pytest.ini_options]
-pythonpath = ["src"]
-=======
-[tool.setuptools.packages.find]
-include = ["src*"]
->>>>>>> 90e52b4 (adding scaffolding for agent creation)
