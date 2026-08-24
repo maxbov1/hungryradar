@@ -1,6 +1,15 @@
+<<<<<<< HEAD
 __pycache__/
 *.py[cod]
 .venv/
 build/
 dist/
 *.egg-info/
+=======
+.venv/
+__pycache__/
+*.pyc
+.env
+*.egg-info/
+.pytest_cache/
+>>>>>>> 90e52b4 (adding scaffolding for agent creation)

@@ -4,14 +4,26 @@
 
 ## What this repository does
 
+<<<<<<< HEAD
 This repository contains the product concept plus a small, runnable Python core for HungryRadar. External integrations are intentionally not wired in yet.
+=======
+This repository contains the product concept, proposed architecture, and an initial agent scaffold for HungryRadar, built on the [Strands Agents SDK](https://strandsagents.com/docs/user-guide/quickstart/overview/). The tools are real (Google Places, Distance Matrix) or best-effort (booking-page fetch and evidence extraction); see [Implementation notes](#implementation-notes).
+>>>>>>> 90e52b4 (adding scaffolding for agent creation)
 
 ## Quick start
 
 Start with the [product and architecture explainer](restaurant-availability-agent.md). It describes the two user workflows, the agent loop, the source boundaries, and the planned AWS implementation.
 
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+cp .env.example .env   # add a Google Maps Platform key; configure AWS/Bedrock creds
+python -m src.agent "Can two people eat at Nopa tonight around 7:30pm?"
+```
+
 ## Common commands
 
+<<<<<<< HEAD
 Run the core tests without installing dependencies:
 
 ```bash
@@ -26,12 +38,21 @@ The package metadata is in `pyproject.toml`. Provider integrations can be added 
 - [docs/graph.md](docs/graph.md) defines the investigation lifecycle graph and its evidence gates.
 - [CONTRIBUTING.md](CONTRIBUTING.md) lists development and testing rules.
 - [AGENTS.md](AGENTS.md) lists repository constraints for coding agents.
+=======
+```bash
+pip install -e ".[dev]"   # install runtime + test dependencies
+python -m src.agent        # run the demo request from restaurant-availability-agent.md
+python -m src.agent "..."  # run the agent on a custom request
+python -m pytest           # run the test suite
+```
+>>>>>>> 90e52b4 (adding scaffolding for agent creation)
 
 ## Repository layout
 
 ```text
 README.md                         Product overview and proposed implementation
 restaurant-availability-agent.md  Plain-language system explanation with diagrams
+<<<<<<< HEAD
 pyproject.toml                    Minimal Python package metadata
 src/hungryradar/models.py         Canonical domain objects
 src/hungryradar/ports.py          External-provider interfaces
@@ -42,7 +63,27 @@ tests/test_lifecycle.py            Lifecycle gates and checkpoint tests
 ARCHITECTURE.md                   Implementation boundaries and graph plan
 docs/graph.md                     Investigation lifecycle graph and gates
 LICENSE                            MIT License
+=======
+feature-beta-hungriness-quality-money.md  Beta preference-sliders feature spec
+LICENSE                           MIT License
+pyproject.toml                    Dependencies and pytest config
+.env.example                      Environment variables to copy into .env
+src/agent.py                      Agent definition, system prompt, and CLI entry point
+src/config.py                     Environment-backed settings
+src/tools/places.py                find_places, get_place_details (Google Places API)
+src/tools/travel.py                calculate_travel_time (Google Distance Matrix API)
+src/tools/booking.py               find_booking_links, check_reservations, check_waitlist, check_official_updates
+src/tests/                        pytest suite for the tools
+>>>>>>> 90e52b4 (adding scaffolding for agent creation)
 ```
+
+## Implementation notes
+
+- `find_places` and `get_place_details` call the real Google Places API (New) and need `GOOGLE_MAPS_API_KEY` in `.env`.
+- `calculate_travel_time` calls the real Google Distance Matrix API, using the same key.
+- Reservation platforms (OpenTable, Resy, Tock, ...) have no shared public availability API. `check_reservations` and `check_waitlist` fetch the page and return the visible text as evidence with `status: "unknown"` — they never assert "bookable" or "dead end" themselves. The agent's system prompt tells it to read that evidence before deciding a status, per the [failure and uncertainty rules](restaurant-availability-agent.md#failure-and-uncertainty-rules). A production build should replace these with provider-specific integrations (e.g. partner APIs) or a headless-browser tool for JS-rendered widgets.
+- `find_booking_links` takes a restaurant's website URL (typically from `get_place_details`) rather than a `place_id`, since a place_id alone doesn't resolve to a website without that lookup.
+- The agent defaults to Strands' default model provider (Amazon Bedrock); set `HUNGRYRADAR_MODEL_ID` in `.env` to override.
 
 HungryRadar is an AI restaurant-availability concierge. It helps hungry people avoid wasted trips by checking whether a restaurant has a reservation, a waitlist, a realistic walk-in option, or no useful path to food at the requested time.
 
@@ -276,7 +317,7 @@ or no credible walk-in path.
 
 ## Project status
 
-This repository currently documents the product and proposed architecture. The implementation is not yet present.
+The product and architecture are documented, and an initial Strands-based agent scaffold exists in `src/` with real Google Places/Distance Matrix tools and best-effort booking-page tools (see [Implementation notes](#implementation-notes)). Not yet built: the web/chat UI, ranking logic for the "find a restaurant" workflow, and provider-specific reservation/waitlist checks.
 
 ## License
 
