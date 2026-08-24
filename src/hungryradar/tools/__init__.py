@@ -9,8 +9,11 @@ from .booking import (
 from .places import find_places, get_place_details
 from .recommendation import finalize_recommendation
 from .travel import calculate_travel_time
+from .lifecycle import record_availability, start_investigation
 
 ALL_TOOLS = [
+    start_investigation,
+    record_availability,
     find_places,
     get_place_details,
     calculate_travel_time,

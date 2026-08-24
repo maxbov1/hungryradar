@@ -8,6 +8,8 @@ README.md#implementation-notes.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import httpx
 from bs4 import BeautifulSoup
 
@@ -15,30 +17,49 @@ _USER_AGENT = "HungryRadarBot/0.1 (restaurant availability checks)"
 
 
 def fetch_page_text(url: str, *, max_chars: int = 4000) -> dict:
+    checked_at = datetime.now(timezone.utc).isoformat()
     try:
         response = httpx.get(
             url, headers={"User-Agent": _USER_AGENT}, timeout=10.0, follow_redirects=True
         )
         response.raise_for_status()
     except httpx.HTTPError as exc:
-        return {"source_uri": url, "fetched": False, "error": str(exc), "page_text_snippet": ""}
+        return {
+            "source_uri": url,
+            "checked_at": checked_at,
+            "fetched": False,
+            "error": str(exc),
+            "page_text_snippet": "",
+        }
 
     soup = BeautifulSoup(response.text, "html.parser")
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
     text = " ".join(soup.get_text(separator=" ").split())
 
-    return {"source_uri": url, "fetched": True, "page_text_snippet": text[:max_chars]}
+    return {
+        "source_uri": url,
+        "checked_at": checked_at,
+        "fetched": True,
+        "page_text_snippet": text[:max_chars],
+    }
 
 
 def find_links_by_domain(url: str, domains: tuple[str, ...]) -> dict:
+    checked_at = datetime.now(timezone.utc).isoformat()
     try:
         response = httpx.get(
             url, headers={"User-Agent": _USER_AGENT}, timeout=10.0, follow_redirects=True
         )
         response.raise_for_status()
     except httpx.HTTPError as exc:
-        return {"source_uri": url, "fetched": False, "error": str(exc), "links": []}
+        return {
+            "source_uri": url,
+            "checked_at": checked_at,
+            "fetched": False,
+            "error": str(exc),
+            "links": [],
+        }
 
     soup = BeautifulSoup(response.text, "html.parser")
     links = {
@@ -47,4 +68,9 @@ def find_links_by_domain(url: str, domains: tuple[str, ...]) -> dict:
         if any(domain in anchor["href"] for domain in domains)
     }
 
-    return {"source_uri": url, "fetched": True, "links": sorted(links)}
+    return {
+        "source_uri": url,
+        "checked_at": checked_at,
+        "fetched": True,
+        "links": sorted(links),
+    }
